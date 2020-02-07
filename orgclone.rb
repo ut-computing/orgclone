@@ -6,21 +6,32 @@ require 'optparse'
 require 'uri'
 
 def fetch_repos_list(org, token)
-  uri = URI("https://api.github.com/orgs/#{org}/repos?per_page=100")
-  req = Net::HTTP::Get.new(uri)
-  req['Authorization'] = "token #{token}"
+  page = 1
+  results = []
 
-  res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
-    http.request(req)
+  puts "Fetching list of repositories from GitHub API..."
+
+  loop do
+    uri = URI("https://api.github.com/orgs/#{org}/repos?per_page=100&page=#{page}")
+    req = Net::HTTP::Get.new(uri)
+    req['Authorization'] = "token #{token}"
+
+    res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
+      http.request(req)
+    end
+
+    unless res.is_a? Net::HTTPOK
+      abort "Failed to connect to GitHub API: #{res.code} #{res.message}"
+    end
+
+    r = JSON.parse(res.body)
+    if r.size > 0
+      page += 1
+      results += r
+    else
+      return results
+    end
   end
-
-  if res.is_a? Net::HTTPOK
-    puts "Fetched list of repositories from GitHub API"
-  else
-    abort "Failed to connect to GitHub API: #{res.code} #{res.message}"
-  end
-
-  JSON.parse(res.body)
 end
 
 def clone_matching_repos(repos, prefix)
